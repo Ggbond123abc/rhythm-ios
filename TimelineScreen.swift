@@ -9,6 +9,7 @@ struct DayTimelineView: View {
     @State private var selectedDate = Date.now
     @State private var editingEntry: TimelineEntry?
     @State private var newEntry: NewEntrySeed?
+    @State private var showingBackground = false
 
     private var dayEntries: [TimelineEntry] {
         entries.filter { Calendar.current.isDate($0.start, inSameDayAs: selectedDate) }
@@ -76,9 +77,22 @@ struct DayTimelineView: View {
                 }
                 .padding(18)
             }
-            .background(AppStyle.canvas.ignoresSafeArea())
+            .background(PageBackgroundView(page: .timeline))
             .navigationTitle("时间线")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingBackground = true
+                    } label: {
+                        Image(systemName: "photo")
+                    }
+                    .accessibilityLabel("更换时间线页背景")
+                }
+            }
+            .sheet(isPresented: $showingBackground) {
+                BackgroundPickerSheet(page: .timeline)
+            }
             .sheet(item: $newEntry) { seed in
                 TimelineEditor(defaultDate: selectedDate, startMinute: seed.minute, defaultIsPlan: seed.isPlan)
             }

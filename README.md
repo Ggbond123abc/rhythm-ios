@@ -10,13 +10,24 @@ Open `Rhythm.xcodeproj` in Xcode 15 or later, select an iPhone simulator or devi
 
 - Today list with user-managed categories (add, rename, recolor, delete), subtasks, and count-based progress.
 - Tomorrow's top-three list.
-- Two 24-hour clock dials on the home screen: planned blocks vs actual logging, with red slices for plan deviations.
+- Two 24-hour clock dials on the home screen: planned blocks vs actual logging, with red slices for plan deviations. Every hour (0–23) is numbered on the dial.
 - Tap a slice to see and edit "what happens between which times"; tap empty dial space to log that time directly.
+- While logging a record, tick any unfinished todo to complete it on the spot; fully completed todos are hidden from that list.
 - Daily review listing missed, delayed, overlong, partial, and unplanned blocks, each with planned vs actual time ranges.
+- Todo review by day / week / month with completion rate, per-day bars, category breakdown, and remaining items.
+- Natural green theme, plus a per-page background: each of the three tabs can use a built-in green gradient or its own photo.
 - Local persistence with SwiftData.
 - Siri/App Shortcuts quick capture with an automatic timestamp.
 
 Lock-screen widgets are not included in this MVP; a WidgetKit extension target and shared data configuration still need to be added in Xcode.
+
+## 图标
+
+`Assets.xcassets` 里的 `AppIcon` 是自然绿色风格（深林绿渐变 + 24 小时刻度 + 新叶）。图标由 `scripts/make-icon.ps1` 生成，改完脚本后运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\make-icon.ps1
+```
 
 ## 生成安装包（IPA）
 

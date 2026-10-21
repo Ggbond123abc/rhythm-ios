@@ -9,6 +9,7 @@ struct TodayView: View {
     @State private var showingTodoEditor = false
     @State private var showingCategories = false
     @State private var showingHistory = false
+    @State private var showingBackground = false
     @State private var editingTodo: TodoItem?
     @State private var editingEntry: TimelineEntry?
     @State private var newEntry: NewEntrySeed?
@@ -67,7 +68,7 @@ struct TodayView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 32)
             }
-            .background(AppStyle.canvas.ignoresSafeArea())
+            .background(PageBackgroundView(page: .today))
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingTodoEditor) {
                 TodoEditor(
@@ -82,6 +83,9 @@ struct TodayView: View {
             }
             .sheet(isPresented: $showingHistory) {
                 TodoHistoryView()
+            }
+            .sheet(isPresented: $showingBackground) {
+                BackgroundPickerSheet(page: .today)
             }
             .sheet(item: $editingTodo) { todo in
                 TodoEditor(todo: todo, initialDate: todo.dueDate, tomorrowImportant: todo.isTomorrowImportant)
@@ -114,6 +118,17 @@ struct TodayView: View {
                     .foregroundStyle(AppStyle.muted)
             }
             Spacer(minLength: 0)
+            Button {
+                showingBackground = true
+            } label: {
+                Image(systemName: "photo")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppStyle.ink)
+                    .frame(width: 38, height: 38)
+                    .background(.white.opacity(0.85), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("更换今天页背景")
             Button {
                 showingHistory = true
             } label: {

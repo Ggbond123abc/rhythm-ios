@@ -226,6 +226,7 @@ struct TimelineEditor: View {
     @State private var tags: String
     @State private var notes: String
     @State private var isPlan: Bool
+    @State private var checkedTodoIDs: Set<UUID> = []
 
     init(
         entry: TimelineEntry? = nil,
@@ -341,6 +342,43 @@ struct TimelineEditor: View {
                         .foregroundStyle(AppStyle.muted)
                 }
 
+                Section {
+                    if pendingTodos.isEmpty {
+                        Text("没有未完成的待办，先把待办都完成了。")
+                            .font(.caption)
+                            .foregroundStyle(AppStyle.muted)
+                    } else {
+                        ForEach(pendingTodos) { todo in
+                            Button {
+                                toggleCompletion(todo)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: checkedTodoIDs.contains(todo.id) ? "checkmark.circle.fill" : "circle")
+                                        .font(.title3)
+                                        .foregroundStyle(checkedTodoIDs.contains(todo.id) ? AppStyle.green : AppStyle.muted.opacity(0.55))
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(todo.title)
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(checkedTodoIDs.contains(todo.id) ? AppStyle.muted : AppStyle.ink)
+                                            .strikethrough(checkedTodoIDs.contains(todo.id))
+                                        Text(todoSubtitle(todo))
+                                            .font(.caption2)
+                                            .foregroundStyle(AppStyle.muted)
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } header: {
+                    Text("这个时间完成了什么待办")
+                } footer: {
+                    Text("勾一下就把待办标记完成，这条记录会顺手关联到它；已经全部完成的待办不会再出现在这里。")
+                        .font(.caption2)
+                        .foregroundStyle(AppStyle.muted)
+                }
+
                 Section("补充") {
                     TextField("标签，用逗号分隔", text: $tags)
                     TextField("备注", text: $notes, axis: .vertical).lineLimit(2...4)
@@ -372,6 +410,59 @@ struct TimelineEditor: View {
             .onChange(of: startText) { _, _ in applyTimes() }
             .onChange(of: endText) { _, _ in applyTimes() }
             .onChange(of: day) { _, _ in applyTimes() }
+        }
+    }
+
+    private var pendingTodos: [TodoItem] {
+        todos
+            .filter { todo in
+                let isOpen = !todo.isCompleted && todo.parentID == nil
+                return isOpen || checkedTodoIDs.contains(todo.id)
+            }
+            .sorted { lhs, rhs in
+                let lhsChecked = checkedTodoIDs.contains(lhs.id)
+                let rhsChecked = checkedTodoIDs.contains(rhs.id)
+                if lhsChecked != rhsChecked { return !lhsChecked }
+                return lhs.dueDate < rhs.dueDate
+            }
+    }
+
+    private func todoSubtitle(_ todo: TodoItem) -> String {
+        var parts = [todo.category]
+        if todo.kind == "count" {
+            parts.append("\(todo.currentCount)/\(todo.targetCount) 次")
+        }
+        if Calendar.current.isDateInToday(todo.dueDate) {
+            parts.append("今天")
+        } else {
+            parts.append(todo.dueDate.formatted(.dateTime.month().day()))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func toggleCompletion(_ todo: TodoItem) {
+        if checkedTodoIDs.contains(todo.id) {
+            todo.isCompleted = false
+            if todo.kind == "count" {
+                todo.currentCount = 0
+            }
+            checkedTodoIDs.remove(todo.id)
+            if todoID == todo.id {
+                todoID = nil
+            }
+            return
+        }
+
+        todo.isCompleted = true
+        if todo.kind == "count" {
+            todo.currentCount = todo.targetCount
+        }
+        checkedTodoIDs.insert(todo.id)
+        if todoID == nil {
+            todoID = todo.id
+        }
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            title = todo.title
         }
     }
 

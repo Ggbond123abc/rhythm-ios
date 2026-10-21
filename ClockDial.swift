@@ -59,9 +59,9 @@ struct DayClock: View {
             let outer = side / 2 - 18
             let thickness = max(18, side * 0.18)
             let inner = outer - thickness
-            let labelStep = side >= 210 ? 1 : (side >= 145 ? 2 : 3)
+            let labelStep = 1
             let labelRadius = outer + 9
-            let labelFont = max(6, side * 0.042)
+            let labelFont = max(5.5, side * 0.037)
 
             ZStack {
                 Circle()
