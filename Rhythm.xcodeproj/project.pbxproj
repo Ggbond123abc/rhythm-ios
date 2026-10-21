@@ -18,6 +18,7 @@
 		A10000000000000000000009 /* ReviewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* ReviewScreen.swift */; };
 		A10000000000000000000010 /* Editors.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* Editors.swift */; };
 		A10000000000000000000011 /* QuickLogIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* QuickLogIntent.swift */; };
+		A10000000000000000000012 /* TodoHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* TodoHistoryView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 		B10000000000000000000009 /* ReviewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* Editors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* QuickLogIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLogIntent.swift; sourceTree = "<group>"; };
+		B10000000000000000000012 /* TodoHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoHistoryView.swift; sourceTree = "<group>"; };
 		C10000000000000000000001 /* Rhythm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rhythm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -62,6 +64,7 @@
 				B10000000000000000000009 /* ReviewScreen.swift */,
 				B10000000000000000000010 /* Editors.swift */,
 				B10000000000000000000011 /* QuickLogIntent.swift */,
+				B10000000000000000000012 /* TodoHistoryView.swift */,
 			);
 			path = .;
 			sourceTree = "<group>";
@@ -133,6 +136,7 @@
 				A10000000000000000000009 /* ReviewScreen.swift in Sources */,
 				A10000000000000000000010 /* Editors.swift in Sources */,
 				A10000000000000000000011 /* QuickLogIntent.swift in Sources */,
+				A10000000000000000000012 /* TodoHistoryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -190,3 +194,4 @@
 	};
 	rootObject = F10000000000000000000002 /* Project object */;
 }
+

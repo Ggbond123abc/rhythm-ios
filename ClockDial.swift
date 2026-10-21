@@ -56,9 +56,12 @@ struct DayClock: View {
         GeometryReader { geo in
             let side = min(geo.size.width, geo.size.height)
             let center = CGPoint(x: side / 2, y: side / 2)
-            let outer = side / 2 - 12
+            let outer = side / 2 - 18
             let thickness = max(18, side * 0.18)
             let inner = outer - thickness
+            let labelStep = side >= 210 ? 1 : (side >= 145 ? 2 : 3)
+            let labelRadius = outer + 9
+            let labelFont = max(6, side * 0.042)
 
             ZStack {
                 Circle()
@@ -84,12 +87,12 @@ struct DayClock: View {
 
                 Canvas { context, size in
                     let middle = CGPoint(x: size.width / 2, y: size.height / 2)
-                    let radius = min(size.width, size.height) / 2 - 12
+                    let radius = min(size.width, size.height) / 2 - 18
                     for hour in 0..<24 {
                         let angle = Double(hour) / 24 * 2 * .pi - .pi / 2
                         let major = hour % 6 == 0
-                        let outerTick = radius + (major ? 7 : 4)
-                        let innerTick = radius + 1
+                        let outerTick = radius + (major ? 3 : 2)
+                        let innerTick = radius
                         var path = Path()
                         path.move(to: CGPoint(
                             x: middle.x + CGFloat(cos(angle)) * innerTick,
@@ -101,10 +104,25 @@ struct DayClock: View {
                         ))
                         context.stroke(
                             path,
-                            with: .color(AppStyle.muted.opacity(major ? 0.55 : 0.28)),
-                            lineWidth: major ? 1.2 : 0.6
+                            with: .color(AppStyle.muted.opacity(major ? 0.6 : 0.3)),
+                            lineWidth: major ? 1.1 : 0.5
                         )
                     }
+                }
+
+                ForEach(Array(stride(from: 0, to: 24, by: labelStep)), id: \.self) { hour in
+                    let angle = Double(hour) / 24 * 2 * .pi - .pi / 2
+                    Text("\(hour)")
+                        .font(.system(
+                            size: labelFont,
+                            weight: hour % 6 == 0 ? .bold : .regular,
+                            design: .rounded
+                        ))
+                        .foregroundStyle(hour % 6 == 0 ? AppStyle.ink.opacity(0.75) : AppStyle.muted.opacity(0.85))
+                        .position(
+                            x: center.x + CGFloat(cos(angle)) * labelRadius,
+                            y: center.y + CGFloat(sin(angle)) * labelRadius
+                        )
                 }
 
                 VStack(spacing: 1) {
@@ -144,7 +162,7 @@ private struct ClockArcShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let outer = min(rect.width, rect.height) / 2 - 12
+        let outer = min(rect.width, rect.height) / 2 - 18
         let inner = outer - thickness
         let startAngle = Angle.degrees(startMinute / 1440 * 360 - 90)
         let endAngle = Angle.degrees(endMinute / 1440 * 360 - 90)

@@ -219,6 +219,9 @@ struct TimelineEditor: View {
     @State private var title: String
     @State private var start: Date
     @State private var end: Date
+    @State private var day: Date
+    @State private var startText: String
+    @State private var endText: String
     @State private var todoID: UUID?
     @State private var tags: String
     @State private var notes: String
@@ -251,9 +254,14 @@ struct TimelineEditor: View {
             initialStart = .now
         }
 
+        let initialEnd = entry?.end ?? initialStart.addingTimeInterval(defaultIsPlan ? 3600 : 1800)
+
         _title = State(initialValue: entry?.title ?? "")
         _start = State(initialValue: initialStart)
-        _end = State(initialValue: entry?.end ?? initialStart.addingTimeInterval(defaultIsPlan ? 3600 : 1800))
+        _end = State(initialValue: initialEnd)
+        _day = State(initialValue: initialStart)
+        _startText = State(initialValue: Self.timeString(initialStart))
+        _endText = State(initialValue: Self.timeString(initialEnd))
         _todoID = State(initialValue: entry?.todoID)
         _tags = State(initialValue: entry?.tags ?? "")
         _notes = State(initialValue: entry?.notes ?? "")
@@ -300,8 +308,37 @@ struct TimelineEditor: View {
                 }
 
                 Section("时间") {
-                    DatePicker("开始", selection: $start, displayedComponents: [.date, .hourAndMinute])
-                    DatePicker("结束", selection: $end, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("日期", selection: $day, displayedComponents: .date)
+
+                    HStack {
+                        Text("开始")
+                        Spacer()
+                        TextField("09:00", text: $startText)
+                            .keyboardType(.numbersAndPunctuation)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 96)
+                        if !startIsValid {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(AppStyle.danger)
+                        }
+                    }
+
+                    HStack {
+                        Text("结束")
+                        Spacer()
+                        TextField("10:00", text: $endText)
+                            .keyboardType(.numbersAndPunctuation)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 96)
+                        if !endIsValid {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(AppStyle.danger)
+                        }
+                    }
+
+                    Text("直接输入时间即可：21:30、930、9 都行。也可以在首页点时钟空白处选时间。")
+                        .font(.caption)
+                        .foregroundStyle(AppStyle.muted)
                 }
 
                 Section("补充") {
@@ -326,13 +363,98 @@ struct TimelineEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存", action: save)
-                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || end < start)
+                        .disabled(
+                            title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                            !startIsValid || !endIsValid || end < start
+                        )
                 }
             }
+            .onChange(of: startText) { _, _ in applyTimes() }
+            .onChange(of: endText) { _, _ in applyTimes() }
+            .onChange(of: day) { _, _ in applyTimes() }
+        }
+    }
+
+    private var startIsValid: Bool {
+        Self.minutes(from: startText) != nil
+    }
+
+    private var endIsValid: Bool {
+        Self.minutes(from: endText) != nil
+    }
+
+    private func applyTimes() {
+        guard let startMinutes = Self.minutes(from: startText),
+              let endMinutes = Self.minutes(from: endText) else { return }
+        let calendar = Calendar.current
+        if let newStart = calendar.date(
+            bySettingHour: startMinutes / 60,
+            minute: startMinutes % 60,
+            second: 0,
+            of: day
+        ) {
+            start = newStart
+        }
+        if let newEnd = calendar.date(
+            bySettingHour: endMinutes / 60,
+            minute: endMinutes % 60,
+            second: 0,
+            of: day
+        ) {
+            end = newEnd
+        }
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    private static func timeString(_ date: Date) -> String {
+        timeFormatter.string(from: date)
+    }
+
+    private static func minutes(from text: String) -> Int? {
+        let cleaned = text
+            .replacingOccurrences(of: "：", with: ":")
+            .replacingOccurrences(of: "点", with: ":")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+
+        let parts = cleaned.split(separator: ":", omittingEmptySubsequences: true)
+        if parts.count == 2,
+           let hour = Int(parts[0]),
+           let minute = Int(parts[1]),
+           (0...23).contains(hour),
+           (0...59).contains(minute) {
+            return hour * 60 + minute
+        }
+
+        let digits = cleaned.filter(\.isNumber)
+        let allowed = CharacterSet(charactersIn: "0123456789: ")
+        guard !digits.isEmpty, cleaned.unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
+            return nil
+        }
+
+        switch digits.count {
+        case 1, 2:
+            guard let hour = Int(digits), (0...23).contains(hour) else { return nil }
+            return hour * 60
+        case 3, 4:
+            guard let minute = Int(digits.suffix(2)),
+                  let hour = Int(digits.prefix(digits.count - 2)),
+                  (0...23).contains(hour),
+                  (0...59).contains(minute) else { return nil }
+            return hour * 60 + minute
+        default:
+            return nil
         }
     }
 
     private func save() {
+        applyTimes()
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if let entry {
             entry.title = cleanTitle
@@ -383,7 +505,7 @@ struct CategoryManagerView: View {
                 }
 
                 Section {
-                    Text("点色块换颜色；左滑删除分类。删除分类不会删除待办，已有待办会保留原来的分类名称。")
+                    Text("颜色就是时钟上填充的颜色。点圆点换色，左滑删除标签；删除标签不会删除待办，已有待办会保留原来的标签名称。")
                         .font(.caption)
                         .foregroundStyle(AppStyle.muted)
                 }
@@ -413,7 +535,6 @@ struct CategoryManagerView: View {
 }
 
 private struct CategoryRow: View {
-    @Environment(\.modelContext) private var modelContext
     @Query private var todos: [TodoItem]
 
     let category: TodoCategory
@@ -421,12 +542,23 @@ private struct CategoryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: cycleColor) {
+            Menu {
+                ForEach(Array(AppStyle.palette.enumerated()), id: \.offset) { index, hex in
+                    Button {
+                        category.colorHex = hex
+                    } label: {
+                        Label(
+                            AppStyle.paletteNames[index],
+                            systemImage: category.colorHex == hex ? "checkmark.circle.fill" : "circle"
+                        )
+                    }
+                }
+            } label: {
                 Circle()
                     .fill(Color(hex: category.colorHex))
-                    .frame(width: 18, height: 18)
+                    .frame(width: 20, height: 20)
+                    .overlay(Circle().stroke(Color.white.opacity(0.9), lineWidth: 1.5))
             }
-            .buttonStyle(.plain)
             .accessibilityLabel("更换颜色")
 
             TextField("分类名称", text: $draft)
@@ -447,11 +579,5 @@ private struct CategoryRow: View {
         let oldName = category.name
         todos.filter { $0.category == oldName }.forEach { $0.category = name }
         category.name = name
-    }
-
-    private func cycleColor() {
-        let palette = AppStyle.palette
-        let currentIndex = palette.firstIndex(of: category.colorHex) ?? -1
-        category.colorHex = palette[(currentIndex + 1) % palette.count]
     }
 }

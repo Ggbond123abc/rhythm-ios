@@ -29,6 +29,7 @@ final class TodoItem {
     var isTomorrowImportant: Bool
     var parentID: UUID?
     var notes: String
+    var deferCount: Int = 0
 
     init(
         title: String,
@@ -40,7 +41,8 @@ final class TodoItem {
         isCompleted: Bool = false,
         isTomorrowImportant: Bool = false,
         parentID: UUID? = nil,
-        notes: String = ""
+        notes: String = "",
+        deferCount: Int = 0
     ) {
         self.id = UUID()
         self.title = title
@@ -53,6 +55,16 @@ final class TodoItem {
         self.isTomorrowImportant = isTomorrowImportant
         self.parentID = parentID
         self.notes = notes
+        self.deferCount = deferCount
+    }
+
+    var isOverdue: Bool {
+        !isCompleted && Calendar.current.startOfDay(for: dueDate) < Calendar.current.startOfDay(for: .now)
+    }
+
+    func deferTo(_ date: Date) {
+        dueDate = Calendar.current.startOfDay(for: date)
+        deferCount += 1
     }
 }
 

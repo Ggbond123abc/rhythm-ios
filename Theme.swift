@@ -15,6 +15,8 @@ enum AppStyle {
         "#4F7CAC", "#7A6FA8", "#C9A227", "#C4705A",
         "#4E8C74", "#B4698C", "#5E8FA6", "#8A8F98"
     ]
+
+    static let paletteNames = ["蓝", "紫", "金", "珊瑚", "绿", "玫红", "湖蓝", "灰"]
 }
 
 extension Color {

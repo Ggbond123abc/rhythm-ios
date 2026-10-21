@@ -8,6 +8,7 @@ struct TodayView: View {
 
     @State private var showingTodoEditor = false
     @State private var showingCategories = false
+    @State private var showingHistory = false
     @State private var editingTodo: TodoItem?
     @State private var editingEntry: TimelineEntry?
     @State private var newEntry: NewEntrySeed?
@@ -23,6 +24,11 @@ struct TodayView: View {
 
     private var tomorrowTodos: [TodoItem] {
         todos.filter { $0.isTomorrowImportant && Calendar.current.isDateInTomorrow($0.dueDate) }
+            .sorted { $0.dueDate < $1.dueDate }
+    }
+
+    private var overdueTodos: [TodoItem] {
+        todos.filter { $0.isOverdue && $0.parentID == nil }
             .sorted { $0.dueDate < $1.dueDate }
     }
 
@@ -51,6 +57,9 @@ struct TodayView: View {
                     header
                     quickLogButton
                     clockSection
+                    if !overdueTodos.isEmpty {
+                        overdueSection
+                    }
                     todaySection
                     tomorrowSection
                 }
@@ -70,6 +79,9 @@ struct TodayView: View {
             }
             .sheet(isPresented: $showingCategories) {
                 CategoryManagerView()
+            }
+            .sheet(isPresented: $showingHistory) {
+                TodoHistoryView()
             }
             .sheet(item: $editingTodo) { todo in
                 TodoEditor(todo: todo, initialDate: todo.dueDate, tomorrowImportant: todo.isTomorrowImportant)
@@ -102,6 +114,17 @@ struct TodayView: View {
                     .foregroundStyle(AppStyle.muted)
             }
             Spacer(minLength: 0)
+            Button {
+                showingHistory = true
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppStyle.ink)
+                    .frame(width: 38, height: 38)
+                    .background(.white.opacity(0.85), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("待办历史")
             Button {
                 showingCategories = true
             } label: {
@@ -218,6 +241,47 @@ struct TodayView: View {
         .padding(10)
         .frame(maxWidth: .infinity)
         .background(.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var overdueSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                Text("逾期未完成")
+                    .font(.title3.bold())
+                    .foregroundStyle(AppStyle.ink)
+                Text("\(overdueTodos.count) 件")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppStyle.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: "#F6E2CB"), in: Capsule())
+                Spacer(minLength: 0)
+                Button {
+                    overdueTodos.forEach { $0.deferTo(.now) }
+                } label: {
+                    Label("全部顺延", systemImage: "arrow.uturn.forward")
+                        .font(.caption.weight(.semibold))
+                }
+                .tint(AppStyle.green)
+            }
+
+            VStack(spacing: 8) {
+                ForEach(overdueTodos) { todo in
+                    TodoRow(
+                        todo: todo,
+                        allTodos: todos,
+                        onEdit: { editingTodo = todo },
+                        onDefer: { todo.deferTo(.now) }
+                    )
+                }
+            }
+
+            Text("长按单条待办可以顺延到明天，历史记录在右上角时钟按钮里。")
+                .font(.caption2)
+                .foregroundStyle(AppStyle.muted)
+        }
+        .padding(14)
+        .background(Color(hex: "#F7EAD4").opacity(0.85), in: RoundedRectangle(cornerRadius: 20))
     }
 
     private var todaySection: some View {
@@ -353,6 +417,7 @@ struct TodoRow: View {
     let todo: TodoItem
     let allTodos: [TodoItem]
     let onEdit: () -> Void
+    var onDefer: (() -> Void)? = nil
 
     private var children: [TodoItem] {
         allTodos.filter { $0.parentID == todo.id }
@@ -412,6 +477,17 @@ struct TodoRow: View {
                     }
                 }
 
+                if let onDefer {
+                    Button(action: onDefer) {
+                        Image(systemName: "arrow.uturn.forward")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppStyle.green)
+                            .frame(width: 28, height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("顺延到今天")
+                }
+
                 Button(action: onEdit) {
                     Image(systemName: "ellipsis")
                         .font(.subheadline.weight(.bold))
@@ -448,6 +524,25 @@ struct TodoRow: View {
         }
         .padding(13)
         .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 17))
+        .contextMenu {
+            if !todo.isCompleted {
+                Button {
+                    todo.deferTo(.now)
+                } label: {
+                    Label("顺延到今天", systemImage: "arrow.uturn.forward")
+                }
+                Button {
+                    todo.deferTo(Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now)
+                } label: {
+                    Label("顺延到明天", systemImage: "sunrise")
+                }
+            }
+            Button {
+                onEdit()
+            } label: {
+                Label("编辑", systemImage: "pencil")
+            }
+        }
     }
 
     private func toggleProgress() {
