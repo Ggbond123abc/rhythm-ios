@@ -8,10 +8,11 @@ Open `Rhythm.xcodeproj` in Xcode 15 or later, select an iPhone simulator or devi
 
 ## Included
 
-- Today list with custom categories, subtasks, and count-based progress.
+- Today list with user-managed categories (add, rename, recolor, delete), subtasks, and count-based progress.
 - Tomorrow's top-three list.
-- Editable actual-time entries and planned time blocks, linked to tasks.
-- Daily review for missed, delayed, overlong, partial, and unplanned activity.
+- Two 24-hour clock dials on the home screen: planned blocks vs actual logging, with red slices for plan deviations.
+- Tap a slice to see and edit "what happens between which times"; tap empty dial space to log that time directly.
+- Daily review listing missed, delayed, overlong, partial, and unplanned blocks, each with planned vs actual time ranges.
 - Local persistence with SwiftData.
 - Siri/App Shortcuts quick capture with an automatic timestamp.
 

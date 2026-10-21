@@ -1,5 +1,20 @@
-import Foundation
+﻿import Foundation
 import SwiftData
+
+@Model
+final class TodoCategory {
+    var id: UUID
+    var name: String
+    var colorHex: String
+    var createdAt: Date
+
+    init(name: String, colorHex: String, createdAt: Date = .now) {
+        self.id = UUID()
+        self.name = name
+        self.colorHex = colorHex
+        self.createdAt = createdAt
+    }
+}
 
 @Model
 final class TodoItem {
@@ -69,5 +84,9 @@ final class TimelineEntry {
         self.tags = tags
         self.notes = notes
         self.isPlan = isPlan
+    }
+
+    var duration: TimeInterval {
+        max(0, end.timeIntervalSince(start))
     }
 }

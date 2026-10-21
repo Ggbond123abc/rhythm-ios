@@ -1,4 +1,4 @@
-import AppIntents
+﻿import AppIntents
 import SwiftData
 
 struct QuickLogIntent: AppIntent {
@@ -10,7 +10,7 @@ struct QuickLogIntent: AppIntent {
     var content: String
 
     func perform() async throws -> some IntentResult {
-        let container = try ModelContainer(for: TodoItem.self, TimelineEntry.self)
+        let container = try ModelContainer(for: TodoItem.self, TimelineEntry.self, TodoCategory.self)
         let context = ModelContext(container)
         let now = Date()
         context.insert(TimelineEntry(title: content, start: now, end: now))
