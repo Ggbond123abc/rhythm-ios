@@ -66,6 +66,7 @@ struct DayTimelineView: View {
                                 TimelineRow(
                                     entry: entry,
                                     linkedTodo: todos.first { $0.id == entry.todoID },
+                                    linkColor: linkedColor(for: entry),
                                     difference: comparison(for: entry)?.detail,
                                     isDifference: comparison(for: entry)?.kind.isDifference ?? false
                                 ) {
@@ -168,11 +169,18 @@ struct DayTimelineView: View {
     private func comparison(for entry: TimelineEntry) -> PlanComparison? {
         comparisons.first { $0.plan?.id == entry.id || $0.actual?.id == entry.id }
     }
+
+    private func linkedColor(for entry: TimelineEntry) -> Color {
+        guard let todoID = entry.todoID,
+              let todo = todos.first(where: { $0.id == todoID }) else { return AppStyle.muted }
+        return categories.color(named: todo.category)
+    }
 }
 
 struct TimelineRow: View {
     let entry: TimelineEntry
     let linkedTodo: TodoItem?
+    let linkColor: Color
     let difference: String?
     let isDifference: Bool
     let onEdit: () -> Void
@@ -212,16 +220,25 @@ struct TimelineRow: View {
                         .padding(.vertical, 2)
                         .background(AppStyle.paleGreen.opacity(0.8), in: Capsule())
                 }
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     if let linkedTodo {
-                        Label(linkedTodo.title, systemImage: "link")
+                        HStack(spacing: 4) {
+                            Image(systemName: "link")
+                            Text(linkedTodo.title)
+                                .lineLimit(1)
+                        }
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(linkColor, in: Capsule())
                     }
                     if !entry.tags.isEmpty {
                         Label(entry.tags, systemImage: "tag")
+                            .font(.caption2)
+                            .foregroundStyle(AppStyle.muted)
                     }
                 }
-                .font(.caption2)
-                .foregroundStyle(AppStyle.muted)
                 if let difference, isDifference {
                     Text(difference)
                         .font(.caption2.weight(.semibold))

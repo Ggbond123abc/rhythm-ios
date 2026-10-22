@@ -156,7 +156,7 @@ struct TodayView: View {
 
     private var quickLogButton: some View {
         Button {
-            newEntry = NewEntrySeed(minute: currentMinute(), isPlan: false)
+            newEntry = NewEntrySeed(minute: nil, isPlan: false)
         } label: {
             HStack(spacing: 13) {
                 Image(systemName: "plus")
@@ -166,7 +166,7 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("快速记录")
                         .font(.headline)
-                    Text("刚刚做了什么？自动记下现在的时间")
+                    Text("接着上次记录的结束时间，一次记一段")
                         .font(.caption)
                         .opacity(0.82)
                 }
@@ -196,6 +196,18 @@ struct TodayView: View {
                         .background(AppStyle.danger, in: Capsule())
                 }
                 Spacer()
+                Button {
+                    showingBackground = true
+                } label: {
+                    Label("背景图", systemImage: "photo")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppStyle.green)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(AppStyle.paleGreen, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("给今天页换背景图")
             }
 
             HStack(alignment: .top, spacing: 10) {

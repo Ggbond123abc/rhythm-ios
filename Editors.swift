@@ -329,9 +329,11 @@ struct TimelineEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \TodoItem.dueDate) private var todos: [TodoItem]
+    @Query(sort: \TimelineEntry.start, order: .reverse) private var recentEntries: [TimelineEntry]
 
     let entry: TimelineEntry?
     let differenceNote: String?
+    private let seededFromClock: Bool
 
     @State private var title: String
     @State private var start: Date
@@ -344,6 +346,8 @@ struct TimelineEditor: View {
     @State private var notes: String
     @State private var isPlan: Bool
     @State private var checkedTodoIDs: Set<UUID> = []
+    @State private var didSeedStart = false
+    @State private var autoStartText: String?
 
     init(
         entry: TimelineEntry? = nil,
@@ -354,6 +358,7 @@ struct TimelineEditor: View {
     ) {
         self.entry = entry
         self.differenceNote = differenceNote
+        self.seededFromClock = startMinute != nil
 
         let calendar = Calendar.current
         let initialStart: Date
@@ -405,6 +410,25 @@ struct TimelineEditor: View {
                         Text(title.isEmpty ? "还没写内容" : title)
                             .font(.subheadline)
                             .foregroundStyle(AppStyle.muted)
+
+                        if let linkedTodo {
+                            HStack(spacing: 5) {
+                                Image(systemName: "link")
+                                Text("关联待办")
+                                    .opacity(0.85)
+                                Text(linkedTodo.title)
+                                    .lineLimit(1)
+                                Text(linkedTodo.category)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Color.white.opacity(0.24), in: Capsule())
+                            }
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(AppStyle.green, in: Capsule())
+                        }
                     }
                     .padding(.vertical, 2)
                 }
@@ -425,7 +449,7 @@ struct TimelineEditor: View {
                         Text("实际").tag(false)
                         Text("计划").tag(true)
                     }
-                    Picker("关联待办", selection: $todoID) {
+                    Picker("关联到待办", selection: $todoID) {
                         Text("不关联").tag(Optional<UUID>.none)
                         ForEach(todos) { todo in
                             Text(todo.title).tag(Optional(todo.id))
@@ -487,7 +511,7 @@ struct TimelineEditor: View {
                         }
                     }
 
-                    Text("直接打字：14:13、14.13、1413、1413 都表示下午 2:13；只写 9 就是 9:00。留空就按现在的时间算。")
+                    Text("开始时间会接着上一条记录的结束时间，可以改。也可以直接打字：14:13、14.13、1413 都是下午 2:13，只写 9 就是 9:00；留空按现在算。")
                         .font(.caption)
                         .foregroundStyle(AppStyle.muted)
                 }
@@ -522,8 +546,24 @@ struct TimelineEditor: View {
                                             .foregroundStyle(AppStyle.muted)
                                     }
                                     Spacer(minLength: 0)
+                                    if checkedTodoIDs.contains(row.todo.id) {
+                                        Text("已勾选")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(AppStyle.green)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(AppStyle.paleGreen, in: Capsule())
+                                    }
                                 }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
                                 .padding(.leading, CGFloat(row.depth) * 12)
+                                .background(
+                                    checkedTodoIDs.contains(row.todo.id)
+                                        ? AppStyle.paleGreen.opacity(0.55)
+                                        : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 9)
+                                )
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -567,8 +607,55 @@ struct TimelineEditor: View {
             }
             .onChange(of: startText) { _, _ in applyTimes() }
             .onChange(of: endText) { _, _ in applyTimes() }
-            .onChange(of: day) { _, _ in applyTimes() }
+            .onChange(of: day) { _, _ in
+                resetSeededStart()
+                seedStartFromLastEntry()
+                applyTimes()
+            }
+            .onChange(of: isPlan) { _, _ in
+                resetSeededStart()
+                seedStartFromLastEntry()
+                applyTimes()
+            }
+            .onAppear { seedStartFromLastEntry() }
+            .onChange(of: recentEntries.count) { _, _ in seedStartFromLastEntry() }
         }
+    }
+
+    private var linkedTodo: TodoItem? {
+        guard let todoID else { return nil }
+        return todos.first { $0.id == todoID }
+    }
+
+    private func seedStartFromLastEntry() {
+        guard entry == nil, !seededFromClock, !didSeedStart else { return }
+        guard startText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        let calendar = Calendar.current
+        let sameKind = recentEntries.filter {
+            $0.isPlan == isPlan && calendar.isDate($0.start, inSameDayAs: day)
+        }
+        guard let last = sameKind.max(by: { $0.end < $1.end }) else { return }
+        if calendar.isDateInToday(day), last.end > Date().addingTimeInterval(5 * 60) {
+            return
+        }
+
+        didSeedStart = true
+        let text = Self.timeString(last.end)
+        autoStartText = text
+        startText = text
+        endText = ""
+        applyTimes()
+    }
+
+    private func resetSeededStart() {
+        guard entry == nil, !seededFromClock else { return }
+        if let autoStartText, startText == autoStartText {
+            startText = ""
+            endText = ""
+        }
+        self.autoStartText = nil
+        didSeedStart = false
     }
 
     private struct ChecklistRow: Identifiable {

@@ -244,14 +244,14 @@ enum TodoReview {
         let totalDuration = actuals.reduce(0) { $0 + $1.duration }
 
         let byTodo = groups
-            .map { key, value in
+            .map { pair -> TodoTimeStat in
                 TodoTimeStat(
-                    id: key,
-                    title: value.title,
-                    category: value.category,
-                    duration: value.duration,
-                    sessions: value.sessions,
-                    isLinked: value.isLinked
+                    id: pair.key,
+                    title: pair.value.title,
+                    category: pair.value.category,
+                    duration: pair.value.duration,
+                    sessions: pair.value.sessions,
+                    isLinked: pair.value.isLinked
                 )
             }
             .sorted { lhs, rhs in
@@ -260,11 +260,11 @@ enum TodoReview {
             }
 
         let byCategory = categoryTotals
-            .map { name, duration in
+            .map { pair -> CategoryTimeStat in
                 CategoryTimeStat(
-                    name: name,
-                    duration: duration,
-                    share: totalDuration == 0 ? 0 : duration / totalDuration
+                    name: pair.key,
+                    duration: pair.value,
+                    share: totalDuration == 0 ? 0 : pair.value / totalDuration
                 )
             }
             .sorted { $0.duration > $1.duration }

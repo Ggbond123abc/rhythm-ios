@@ -592,6 +592,11 @@ struct ReviewScreen: View {
         stat.isLinked ? categories.color(named: stat.category) : AppStyle.muted
     }
 
+    private func linkedTodo(for comparison: PlanComparison) -> TodoItem? {
+        guard let id = comparison.plan?.todoID ?? comparison.actual?.todoID else { return nil }
+        return todos.first { $0.id == id }
+    }
+
     private func categoryTimeColor(_ name: String) -> Color {
         if name == "未关联待办" { return AppStyle.muted }
         return categories.color(named: name)
@@ -664,6 +669,18 @@ struct ReviewScreen: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(AppStyle.ink)
                                 .lineLimit(1)
+                            if let todo = linkedTodo(for: comparison) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "link")
+                                    Text(todo.title)
+                                        .lineLimit(1)
+                                }
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(categories.color(named: todo.category), in: Capsule())
+                            }
                             Spacer(minLength: 0)
                         }
                         Text(comparison.detail)
