@@ -23,6 +23,32 @@ struct TodayView: View {
         }
     }
 
+    private struct TodoGroup {
+        let name: String
+        let todos: [TodoItem]
+    }
+
+    private var todayGroups: [TodoGroup] {
+        let grouped = Dictionary(grouping: todayTodos, by: { $0.category })
+        let order = categories.map(\.name)
+        return grouped.keys
+            .sorted { lhs, rhs in
+                let lhsIndex = order.firstIndex(of: lhs) ?? Int.max
+                let rhsIndex = order.firstIndex(of: rhs) ?? Int.max
+                if lhsIndex != rhsIndex { return lhsIndex < rhsIndex }
+                return lhs < rhs
+            }
+            .map { name in
+                TodoGroup(
+                    name: name,
+                    todos: (grouped[name] ?? []).sorted { lhs, rhs in
+                        if lhs.isCompleted != rhs.isCompleted { return !lhs.isCompleted }
+                        return lhs.title < rhs.title
+                    }
+                )
+            }
+    }
+
     private var tomorrowTodos: [TodoItem] {
         todos.filter { $0.isTomorrowImportant && Calendar.current.isDateInTomorrow($0.dueDate) }
             .sorted { $0.dueDate < $1.dueDate }
@@ -219,10 +245,18 @@ struct TodayView: View {
                 legend(color: AppStyle.orange, text: "计划")
                 legend(color: AppStyle.green, text: "实际")
                 legend(color: AppStyle.danger, text: "计划有差异")
+                HStack(spacing: 4) {
+                    Circle()
+                        .stroke(AppStyle.danger, style: StrokeStyle(lineWidth: 1.6, dash: [2, 1.6]))
+                        .frame(width: 8, height: 8)
+                    Text("虚度")
+                        .font(.caption2)
+                        .foregroundStyle(AppStyle.muted)
+                }
                 Spacer(minLength: 0)
             }
 
-            Text("点色块查看几点到几点做什么，点空白处按该时间补记。")
+            Text("点色块查看几点到几点做什么，点空白处按该时间补记；红色虚线圈＝标记为虚度/刷手机的时段。")
                 .font(.caption2)
                 .foregroundStyle(AppStyle.muted)
         }
@@ -337,9 +371,32 @@ struct TodayView: View {
             if todayTodos.isEmpty {
                 EmptyHintCard(icon: "checkmark.circle", title: "今天还没有待办", subtitle: "先加一件想完成的小事")
             } else {
-                VStack(spacing: 9) {
-                    ForEach(todayTodos) { todo in
-                        TodoRow(todo: todo, allTodos: todos, onEdit: { editingTodo = todo })
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(todayGroups, id: \.name) { group in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 7) {
+                                Circle()
+                                    .fill(categories.color(named: group.name))
+                                    .frame(width: 9, height: 9)
+                                Text(group.name)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppStyle.ink)
+                                Text("\(group.todos.filter(\.isCompleted).count)/\(group.todos.count)")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(AppStyle.muted)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(categories.color(named: group.name).opacity(0.18), in: Capsule())
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.leading, 2)
+
+                            VStack(spacing: 9) {
+                                ForEach(group.todos) { todo in
+                                    TodoRow(todo: todo, allTodos: todos, onEdit: { editingTodo = todo })
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -426,7 +483,12 @@ struct TodayView: View {
             color = AppStyle.orange
         }
         let flagged = entry.isPlan && (comparison?.kind.isDifference ?? false)
-        return ClockSlice(entry: entry, color: color, isFlagged: flagged)
+        return ClockSlice(
+            entry: entry,
+            color: color,
+            isFlagged: flagged,
+            isWasted: !entry.isPlan && entry.isWasted
+        )
     }
 
     private func differenceNote(for entry: TimelineEntry) -> String? {

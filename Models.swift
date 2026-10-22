@@ -78,6 +78,7 @@ final class TimelineEntry {
     var tags: String
     var notes: String
     var isPlan: Bool
+    var isWasted: Bool = false
 
     init(
         title: String,
@@ -86,7 +87,8 @@ final class TimelineEntry {
         todoID: UUID? = nil,
         tags: String = "",
         notes: String = "",
-        isPlan: Bool = false
+        isPlan: Bool = false,
+        isWasted: Bool = false
     ) {
         self.id = UUID()
         self.title = title
@@ -96,6 +98,7 @@ final class TimelineEntry {
         self.tags = tags
         self.notes = notes
         self.isPlan = isPlan
+        self.isWasted = isWasted
     }
 
     var duration: TimeInterval {

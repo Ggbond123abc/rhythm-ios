@@ -463,10 +463,46 @@ struct ReviewScreen: View {
                 categoryTimeCard
             }
 
+            if timeStats.wasted > 0 {
+                wastedCard
+            }
+
             if timeStats.byDay.count > 1, timeStats.byDay.contains(where: { $0.duration > 0 }) {
                 dailyTimeCard
             }
         }
+    }
+
+    private var wastedCard: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title3)
+                .foregroundStyle(AppStyle.danger)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    Text("虚度 \(TimeText.duration(timeStats.wasted))")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppStyle.ink)
+                    Text("\(timeStats.wastedCount) 段")
+                        .font(.caption2)
+                        .foregroundStyle(AppStyle.muted)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(AppStyle.danger.opacity(0.12), in: Capsule())
+                }
+                Text("⚠️ 是你手动标记的「虚度 / 无脑刷手机」时段，这段时长就是虚度了多少。")
+                    .font(.caption2)
+                    .foregroundStyle(AppStyle.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(AppStyle.danger.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(AppStyle.danger.opacity(0.28), lineWidth: 1)
+        )
     }
 
     private func timeStatRow(_ stat: TodoTimeStat) -> some View {
@@ -743,7 +779,8 @@ struct ReviewScreen: View {
         return ClockSlice(
             entry: entry,
             color: color,
-            isFlagged: entry.isPlan && (comparison?.kind.isDifference ?? false)
+            isFlagged: entry.isPlan && (comparison?.kind.isDifference ?? false),
+            isWasted: !entry.isPlan && entry.isWasted
         )
     }
 

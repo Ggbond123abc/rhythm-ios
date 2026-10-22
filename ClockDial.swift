@@ -7,6 +7,7 @@ struct ClockSlice: Identifiable {
     let title: String
     let color: Color
     let isFlagged: Bool
+    let isWasted: Bool
     let startMinute: Double
     let endMinute: Double
 
@@ -14,6 +15,7 @@ struct ClockSlice: Identifiable {
         entry: TimelineEntry,
         color: Color,
         isFlagged: Bool = false,
+        isWasted: Bool = false,
         calendar: Calendar = .current
     ) {
         self.id = entry.id
@@ -22,6 +24,7 @@ struct ClockSlice: Identifiable {
         self.title = entry.title
         self.color = color
         self.isFlagged = isFlagged
+        self.isWasted = isWasted
 
         let startParts = calendar.dateComponents([.hour, .minute], from: entry.start)
         let begin = Double((startParts.hour ?? 0) * 60 + (startParts.minute ?? 0))
@@ -69,20 +72,34 @@ struct DayClock: View {
                     .frame(width: inner * 2, height: inner * 2)
 
                 ForEach(slices) { slice in
-                    ClockArcShape(
-                        startMinute: slice.startMinute,
-                        endMinute: slice.endMinute,
-                        thickness: thickness
-                    )
-                    .fill(slice.isFlagged ? AppStyle.danger : slice.color)
-                    .overlay(
+                    ZStack {
                         ClockArcShape(
                             startMinute: slice.startMinute,
                             endMinute: slice.endMinute,
                             thickness: thickness
                         )
-                        .stroke(Color.white.opacity(0.65), lineWidth: 1)
-                    )
+                        .fill(slice.isFlagged ? AppStyle.danger : slice.color)
+                        .overlay(
+                            ClockArcShape(
+                                startMinute: slice.startMinute,
+                                endMinute: slice.endMinute,
+                                thickness: thickness
+                            )
+                            .stroke(Color.white.opacity(0.65), lineWidth: 1)
+                        )
+
+                        if slice.isWasted {
+                            ClockArcShape(
+                                startMinute: slice.startMinute,
+                                endMinute: slice.endMinute,
+                                thickness: thickness
+                            )
+                            .stroke(
+                                AppStyle.danger,
+                                style: StrokeStyle(lineWidth: 3, dash: [5, 4])
+                            )
+                        }
+                    }
                 }
 
                 Canvas { context, size in

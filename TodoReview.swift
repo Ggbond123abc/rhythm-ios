@@ -97,6 +97,8 @@ struct DayTimeStat: Identifiable {
 struct TimeReviewSummary {
     let total: TimeInterval
     let planned: TimeInterval
+    let wasted: TimeInterval
+    let wastedCount: Int
     let byTodo: [TodoTimeStat]
     let byCategory: [CategoryTimeStat]
     let byDay: [DayTimeStat]
@@ -206,6 +208,8 @@ enum TodoReview {
         var groups: [String: (title: String, category: String, duration: TimeInterval, sessions: Int, isLinked: Bool)] = [:]
         var categoryTotals: [String: TimeInterval] = [:]
         var dayTotals: [Date: TimeInterval] = [:]
+        var wastedTotal: TimeInterval = 0
+        var wastedCount = 0
 
         for entry in actuals {
             let linked = entry.todoID.flatMap { id in todos.first { $0.id == id } }
@@ -239,6 +243,11 @@ enum TodoReview {
 
             categoryTotals[category, default: 0] += entry.duration
             dayTotals[calendar.startOfDay(for: entry.start), default: 0] += entry.duration
+
+            if entry.isWasted {
+                wastedTotal += entry.duration
+                wastedCount += 1
+            }
         }
 
         let totalDuration = actuals.reduce(0) { $0 + $1.duration }
@@ -281,6 +290,8 @@ enum TodoReview {
         return TimeReviewSummary(
             total: totalDuration,
             planned: plans.reduce(0) { $0 + $1.duration },
+            wasted: wastedTotal,
+            wastedCount: wastedCount,
             byTodo: byTodo,
             byCategory: byCategory,
             byDay: byDay

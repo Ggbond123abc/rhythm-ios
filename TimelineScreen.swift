@@ -162,7 +162,8 @@ struct DayTimelineView: View {
         return ClockSlice(
             entry: entry,
             color: color,
-            isFlagged: entry.isPlan && (comparison?.kind.isDifference ?? false)
+            isFlagged: entry.isPlan && (comparison?.kind.isDifference ?? false),
+            isWasted: !entry.isPlan && entry.isWasted
         )
     }
 
@@ -204,6 +205,12 @@ struct TimelineRow: View {
                     Text(entry.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppStyle.ink)
+                    if entry.isWasted {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(AppStyle.danger)
+                            .accessibilityLabel("虚度时间")
+                    }
                     Spacer()
                     Text(entry.isPlan ? "计划" : "实际")
                         .font(.caption2.weight(.semibold))

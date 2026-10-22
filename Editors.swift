@@ -345,6 +345,7 @@ struct TimelineEditor: View {
     @State private var tags: String
     @State private var notes: String
     @State private var isPlan: Bool
+    @State private var isWasted: Bool
     @State private var checkedTodoIDs: Set<UUID> = []
     @State private var didSeedStart = false
     @State private var autoStartText: String?
@@ -389,6 +390,7 @@ struct TimelineEditor: View {
         _tags = State(initialValue: entry?.tags ?? "")
         _notes = State(initialValue: entry?.notes ?? "")
         _isPlan = State(initialValue: entry?.isPlan ?? defaultIsPlan)
+        _isWasted = State(initialValue: entry?.isWasted ?? false)
     }
 
     var body: some View {
@@ -406,6 +408,14 @@ struct TimelineEditor: View {
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 2)
                                 .background(AppStyle.paleGreen, in: Capsule())
+                            if isWasted {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 20, height: 20)
+                                    .background(AppStyle.danger, in: Circle())
+                                    .accessibilityLabel("虚度时间")
+                            }
                         }
                         Text(title.isEmpty ? "还没写内容" : title)
                             .font(.subheadline)
@@ -573,6 +583,30 @@ struct TimelineEditor: View {
                     Text("这个时间完成了什么待办")
                 } footer: {
                     Text("勾一下就把待办标记完成，这条记录会顺手关联到它；子待办也在这里，全部完成的待办不会再出现。")
+                        .font(.caption2)
+                        .foregroundStyle(AppStyle.muted)
+                }
+
+                Section {
+                    Toggle(isOn: $isWasted) {
+                        HStack(spacing: 9) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(isWasted ? AppStyle.danger : AppStyle.muted.opacity(0.7))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("虚度时光 / 无脑刷手机")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(AppStyle.ink)
+                                Text("这段时间没有产出")
+                                    .font(.caption2)
+                                    .foregroundStyle(AppStyle.muted)
+                            }
+                        }
+                    }
+                    .tint(AppStyle.danger)
+                } header: {
+                    Text("⚠️ 标记虚度")
+                } footer: {
+                    Text("打开后这段时间只标一个 ⚠️，时长就是你虚度的时间；复盘里会单独统计总数，不用在标题里写原因。")
                         .font(.caption2)
                         .foregroundStyle(AppStyle.muted)
                 }
@@ -889,6 +923,7 @@ struct TimelineEditor: View {
             entry.tags = tags
             entry.notes = notes
             entry.isPlan = isPlan
+            entry.isWasted = isWasted
         } else {
             modelContext.insert(TimelineEntry(
                 title: cleanTitle,
@@ -897,7 +932,8 @@ struct TimelineEditor: View {
                 todoID: todoID,
                 tags: tags,
                 notes: notes,
-                isPlan: isPlan
+                isPlan: isPlan,
+                isWasted: isWasted
             ))
         }
         dismiss()
