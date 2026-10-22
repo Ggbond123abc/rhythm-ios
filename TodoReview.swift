@@ -70,29 +70,77 @@ struct TodoReviewSummary {
     }
 }
 
+struct TodoTimeStat: Identifiable {
+    let id: String
+    let title: String
+    let category: String
+    let duration: TimeInterval
+    let sessions: Int
+    let isLinked: Bool
+}
+
+struct CategoryTimeStat: Identifiable {
+    let name: String
+    let duration: TimeInterval
+    let share: Double
+
+    var id: String { name }
+}
+
+struct DayTimeStat: Identifiable {
+    let date: Date
+    let duration: TimeInterval
+
+    var id: Date { date }
+}
+
+struct TimeReviewSummary {
+    let total: TimeInterval
+    let planned: TimeInterval
+    let byTodo: [TodoTimeStat]
+    let byCategory: [CategoryTimeStat]
+    let byDay: [DayTimeStat]
+
+    var averagePerActiveDay: TimeInterval {
+        let active = byDay.filter { $0.duration > 0 }.count
+        return active == 0 ? 0 : total / Double(active)
+    }
+
+    var longestSession: TimeInterval {
+        byTodo.map(\.duration).max() ?? 0
+    }
+}
+
 enum TodoReview {
+    static func range(
+        scope: ReviewScope,
+        anchor: Date,
+        calendar: Calendar = .current
+    ) -> (start: Date, end: Date) {
+        switch scope {
+        case .day:
+            let start = calendar.startOfDay(for: anchor)
+            return (start, calendar.date(byAdding: .day, value: 1, to: start) ?? start)
+        case .week:
+            let interval = calendar.dateInterval(of: .weekOfYear, for: anchor)
+            let start = interval?.start ?? calendar.startOfDay(for: anchor)
+            return (start, interval?.end ?? start)
+        case .month:
+            let interval = calendar.dateInterval(of: .month, for: anchor)
+            let start = interval?.start ?? calendar.startOfDay(for: anchor)
+            return (start, interval?.end ?? start)
+        }
+    }
+
     static func summary(
         scope: ReviewScope,
         anchor: Date,
         todos: [TodoItem],
         calendar: Calendar = .current
     ) -> TodoReviewSummary {
-        let rangeStart: Date
-        let rangeEnd: Date
-
-        switch scope {
-        case .day:
-            rangeStart = calendar.startOfDay(for: anchor)
-            rangeEnd = calendar.date(byAdding: .day, value: 1, to: rangeStart) ?? rangeStart
-        case .week:
-            let interval = calendar.dateInterval(of: .weekOfYear, for: anchor)
-            rangeStart = interval?.start ?? calendar.startOfDay(for: anchor)
-            rangeEnd = interval?.end ?? rangeStart
-        case .month:
-            let interval = calendar.dateInterval(of: .month, for: anchor)
-            rangeStart = interval?.start ?? calendar.startOfDay(for: anchor)
-            rangeEnd = interval?.end ?? rangeStart
-        }
+        let bounds = range(scope: scope, anchor: anchor, calendar: calendar)
+        let rangeStart = bounds.start
+        let rangeEnd = bounds.end
 
         let scoped = todos.filter { todo in
             todo.parentID == nil && todo.dueDate >= rangeStart && todo.dueDate < rangeEnd
@@ -142,6 +190,105 @@ enum TodoReview {
             byCategory: categoryStats,
             unfinished: unfinished
         )
+    }
+
+    static func timeSummary(
+        scope: ReviewScope,
+        anchor: Date,
+        entries: [TimelineEntry],
+        todos: [TodoItem],
+        calendar: Calendar = .current
+    ) -> TimeReviewSummary {
+        let bounds = range(scope: scope, anchor: anchor, calendar: calendar)
+        let actuals = entries.filter { !$0.isPlan && $0.start >= bounds.start && $0.start < bounds.end }
+        let plans = entries.filter { $0.isPlan && $0.start >= bounds.start && $0.start < bounds.end }
+
+        var groups: [String: (title: String, category: String, duration: TimeInterval, sessions: Int, isLinked: Bool)] = [:]
+        var categoryTotals: [String: TimeInterval] = [:]
+        var dayTotals: [Date: TimeInterval] = [:]
+
+        for entry in actuals {
+            let linked = entry.todoID.flatMap { id in todos.first { $0.id == id } }
+            let cleanTitle = entry.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let firstTag = entry.tags
+                .split(whereSeparator: { $0 == "," || $0 == "，" || $0 == "、" || $0 == " " })
+                .first
+                .map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
+
+            let key: String
+            let title: String
+            let category: String
+            let isLinked: Bool
+
+            if let linked {
+                key = "todo:\(linked.id.uuidString)"
+                title = linked.title
+                category = linked.category
+                isLinked = true
+            } else {
+                key = "free:\(cleanTitle.lowercased())"
+                title = cleanTitle.isEmpty ? "未命名记录" : cleanTitle
+                category = firstTag.isEmpty ? "未关联待办" : firstTag
+                isLinked = false
+            }
+
+            var group = groups[key] ?? (title: title, category: category, duration: 0, sessions: 0, isLinked: isLinked)
+            group.duration += entry.duration
+            group.sessions += 1
+            groups[key] = group
+
+            categoryTotals[category, default: 0] += entry.duration
+            dayTotals[calendar.startOfDay(for: entry.start), default: 0] += entry.duration
+        }
+
+        let totalDuration = actuals.reduce(0) { $0 + $1.duration }
+
+        let byTodo = groups
+            .map { key, value in
+                TodoTimeStat(
+                    id: key,
+                    title: value.title,
+                    category: value.category,
+                    duration: value.duration,
+                    sessions: value.sessions,
+                    isLinked: value.isLinked
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.duration != rhs.duration { return lhs.duration > rhs.duration }
+                return lhs.title < rhs.title
+            }
+
+        let byCategory = categoryTotals
+            .map { name, duration in
+                CategoryTimeStat(
+                    name: name,
+                    duration: duration,
+                    share: totalDuration == 0 ? 0 : duration / totalDuration
+                )
+            }
+            .sorted { $0.duration > $1.duration }
+
+        var byDay: [DayTimeStat] = []
+        var cursor = calcDayStart(bounds.start, calendar: calendar)
+        let lastDay = calcDayStart(bounds.end.addingTimeInterval(-1), calendar: calendar)
+        while cursor <= lastDay {
+            byDay.append(DayTimeStat(date: cursor, duration: dayTotals[cursor] ?? 0))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+
+        return TimeReviewSummary(
+            total: totalDuration,
+            planned: plans.reduce(0) { $0 + $1.duration },
+            byTodo: byTodo,
+            byCategory: byCategory,
+            byDay: byDay
+        )
+    }
+
+    private static func calcDayStart(_ date: Date, calendar: Calendar) -> Date {
+        calendar.startOfDay(for: date)
     }
 
     static func shiftedAnchor(_ anchor: Date, scope: ReviewScope, step: Int) -> Date {

@@ -25,6 +25,8 @@ struct TodoEditor: View {
     @State private var notes: String
     @State private var newCategoryName = ""
     @State private var showingNewCategoryField = false
+    @State private var newSubtaskTitle = ""
+    @State private var draftSubtasks: [String] = []
 
     init(todo: TodoItem? = nil, initialDate: Date, tomorrowImportant: Bool = false) {
         self.todo = todo
@@ -40,6 +42,16 @@ struct TodoEditor: View {
 
     private var parentOptions: [TodoItem] {
         todos.filter { $0.parentID == nil && $0.id != todo?.id }
+    }
+
+    private var subtasks: [TodoItem] {
+        guard let todo else { return [] }
+        return todos
+            .filter { $0.parentID == todo.id }
+            .sorted { lhs, rhs in
+                if lhs.isCompleted != rhs.isCompleted { return !lhs.isCompleted }
+                return lhs.title < rhs.title
+            }
     }
 
     private var canAddTomorrow: Bool {
@@ -70,6 +82,71 @@ struct TodoEditor: View {
                     }
                     TextField("备注（选填）", text: $notes, axis: .vertical)
                         .lineLimit(2...4)
+                }
+
+                Section {
+                    ForEach(subtasks) { child in
+                        HStack(spacing: 10) {
+                            Button {
+                                toggleSubtask(child)
+                            } label: {
+                                Image(systemName: child.isCompleted ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(child.isCompleted ? AppStyle.green : AppStyle.muted.opacity(0.55))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(child.isCompleted ? "撤销完成 \(child.title)" : "完成 \(child.title)")
+
+                            Text(child.title)
+                                .font(.subheadline)
+                                .foregroundStyle(child.isCompleted ? AppStyle.muted : AppStyle.ink)
+                                .strikethrough(child.isCompleted)
+
+                            Spacer(minLength: 0)
+
+                            Button(role: .destructive) {
+                                modelContext.delete(child)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.caption)
+                                    .foregroundStyle(AppStyle.muted)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("删除子待办 \(child.title)")
+                        }
+                    }
+
+                    ForEach(Array(draftSubtasks.enumerated()), id: \.offset) { index, name in
+                        HStack(spacing: 10) {
+                            Image(systemName: "circle")
+                                .foregroundStyle(AppStyle.muted.opacity(0.5))
+                            Text(name)
+                                .font(.subheadline)
+                                .foregroundStyle(AppStyle.ink)
+                            Spacer(minLength: 0)
+                            Button {
+                                draftSubtasks.remove(at: index)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.caption)
+                                    .foregroundStyle(AppStyle.muted)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    HStack {
+                        TextField("添加子待办，如 顺手倒垃圾", text: $newSubtaskTitle)
+                        Button("添加", action: addSubtask)
+                            .disabled(newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                } header: {
+                    Text("子待办")
+                } footer: {
+                    Text(todo == nil
+                         ? "保存时一起建好；子待办全部完成时，父待办会自动完成。"
+                         : "子待办全部完成时，父待办会自动完成，也可以手动改回。")
+                        .font(.caption2)
+                        .foregroundStyle(AppStyle.muted)
                 }
 
                 Section("分类") {
@@ -158,6 +235,37 @@ struct TodoEditor: View {
         }
     }
 
+    private func addSubtask() {
+        let name = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        if let todo {
+            let child = TodoItem(
+                title: name,
+                category: todo.category,
+                dueDate: todo.dueDate,
+                parentID: todo.id
+            )
+            modelContext.insert(child)
+            refreshParentCompletion(todo)
+        } else {
+            draftSubtasks.append(name)
+        }
+        newSubtaskTitle = ""
+    }
+
+    private func toggleSubtask(_ child: TodoItem) {
+        child.isCompleted.toggle()
+        if let parent = todos.first(where: { $0.id == child.parentID }) {
+            refreshParentCompletion(parent)
+        }
+    }
+
+    private func refreshParentCompletion(_ parent: TodoItem) {
+        let children = todos.filter { $0.parentID == parent.id }
+        guard !children.isEmpty else { return }
+        parent.isCompleted = children.allSatisfy(\.isCompleted)
+    }
+
     private func addCategory() {
         let name = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
@@ -193,7 +301,7 @@ struct TodoEditor: View {
             todo.parentID = selectedParent?.id
             todo.notes = notes
         } else {
-            modelContext.insert(TodoItem(
+            let created = TodoItem(
                 title: cleanTitle,
                 category: finalCategory,
                 dueDate: dueDate,
@@ -202,7 +310,16 @@ struct TodoEditor: View {
                 isTomorrowImportant: tomorrowImportant,
                 parentID: selectedParent?.id,
                 notes: notes
-            ))
+            )
+            modelContext.insert(created)
+            for name in draftSubtasks {
+                modelContext.insert(TodoItem(
+                    title: name,
+                    category: finalCategory,
+                    dueDate: dueDate,
+                    parentID: created.id
+                ))
+            }
         }
         dismiss()
     }
@@ -261,8 +378,8 @@ struct TimelineEditor: View {
         _start = State(initialValue: initialStart)
         _end = State(initialValue: initialEnd)
         _day = State(initialValue: initialStart)
-        _startText = State(initialValue: Self.timeString(initialStart))
-        _endText = State(initialValue: Self.timeString(initialEnd))
+        _startText = State(initialValue: entry.map { Self.timeString($0.start) } ?? "")
+        _endText = State(initialValue: entry.map { Self.timeString($0.end) } ?? "")
         _todoID = State(initialValue: entry?.todoID)
         _tags = State(initialValue: entry?.tags ?? "")
         _notes = State(initialValue: entry?.notes ?? "")
@@ -274,9 +391,17 @@ struct TimelineEditor: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(TimeText.range(start, end))
-                            .font(.title3.bold())
-                            .foregroundStyle(AppStyle.ink)
+                        HStack(spacing: 8) {
+                            Text(TimeText.range(start, end))
+                                .font(.title3.bold())
+                                .foregroundStyle(AppStyle.ink)
+                            Text(TimeText.duration(max(0, end.timeIntervalSince(start))))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppStyle.green)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(AppStyle.paleGreen, in: Capsule())
+                        }
                         Text(title.isEmpty ? "还没写内容" : title)
                             .font(.subheadline)
                             .foregroundStyle(AppStyle.muted)
@@ -314,7 +439,7 @@ struct TimelineEditor: View {
                     HStack {
                         Text("开始")
                         Spacer()
-                        TextField("09:00", text: $startText)
+                        TextField("14:13", text: $startText)
                             .keyboardType(.numbersAndPunctuation)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 96)
@@ -327,7 +452,7 @@ struct TimelineEditor: View {
                     HStack {
                         Text("结束")
                         Spacer()
-                        TextField("10:00", text: $endText)
+                        TextField("15:00", text: $endText)
                             .keyboardType(.numbersAndPunctuation)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 96)
@@ -337,36 +462,69 @@ struct TimelineEditor: View {
                         }
                     }
 
-                    Text("直接输入时间即可：21:30、930、9 都行。也可以在首页点时钟空白处选时间。")
+                    HStack(spacing: 10) {
+                        Button {
+                            fillNow()
+                        } label: {
+                            Label("用现在的时间", systemImage: "clock.arrow.circlepath")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(AppStyle.green)
+
+                        Spacer(minLength: 0)
+
+                        if !startText.isEmpty || !endText.isEmpty {
+                            Button {
+                                startText = ""
+                                endText = ""
+                            } label: {
+                                Text("清空")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(AppStyle.muted)
+                        }
+                    }
+
+                    Text("直接打字：14:13、14.13、1413、1413 都表示下午 2:13；只写 9 就是 9:00。留空就按现在的时间算。")
                         .font(.caption)
                         .foregroundStyle(AppStyle.muted)
                 }
 
                 Section {
-                    if pendingTodos.isEmpty {
+                    if checklistRows.isEmpty {
                         Text("没有未完成的待办，先把待办都完成了。")
                             .font(.caption)
                             .foregroundStyle(AppStyle.muted)
                     } else {
-                        ForEach(pendingTodos) { todo in
+                        ForEach(checklistRows) { row in
                             Button {
-                                toggleCompletion(todo)
+                                toggleCompletion(row.todo)
                             } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: checkedTodoIDs.contains(todo.id) ? "checkmark.circle.fill" : "circle")
-                                        .font(.title3)
-                                        .foregroundStyle(checkedTodoIDs.contains(todo.id) ? AppStyle.green : AppStyle.muted.opacity(0.55))
+                                HStack(spacing: 9) {
+                                    if row.depth > 0 {
+                                        Rectangle()
+                                            .fill(AppStyle.paleGreen)
+                                            .frame(width: 2, height: 22)
+                                            .padding(.leading, 6)
+                                    }
+                                    Image(systemName: checkedTodoIDs.contains(row.todo.id) ? "checkmark.circle.fill" : "circle")
+                                        .font(row.depth > 0 ? .body : .title3)
+                                        .foregroundStyle(checkedTodoIDs.contains(row.todo.id) ? AppStyle.green : AppStyle.muted.opacity(0.55))
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(todo.title)
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(checkedTodoIDs.contains(todo.id) ? AppStyle.muted : AppStyle.ink)
-                                            .strikethrough(checkedTodoIDs.contains(todo.id))
-                                        Text(todoSubtitle(todo))
+                                        Text(row.todo.title)
+                                            .font(row.depth > 0 ? .caption.weight(.medium) : .subheadline.weight(.medium))
+                                            .foregroundStyle(checkedTodoIDs.contains(row.todo.id) ? AppStyle.muted : AppStyle.ink)
+                                            .strikethrough(checkedTodoIDs.contains(row.todo.id))
+                                        Text(todoSubtitle(row.todo, depth: row.depth))
                                             .font(.caption2)
                                             .foregroundStyle(AppStyle.muted)
                                     }
                                     Spacer(minLength: 0)
                                 }
+                                .padding(.leading, CGFloat(row.depth) * 12)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -374,7 +532,7 @@ struct TimelineEditor: View {
                 } header: {
                     Text("这个时间完成了什么待办")
                 } footer: {
-                    Text("勾一下就把待办标记完成，这条记录会顺手关联到它；已经全部完成的待办不会再出现在这里。")
+                    Text("勾一下就把待办标记完成，这条记录会顺手关联到它；子待办也在这里，全部完成的待办不会再出现。")
                         .font(.caption2)
                         .foregroundStyle(AppStyle.muted)
                 }
@@ -413,24 +571,45 @@ struct TimelineEditor: View {
         }
     }
 
-    private var pendingTodos: [TodoItem] {
-        todos
-            .filter { todo in
-                let isOpen = !todo.isCompleted && todo.parentID == nil
-                return isOpen || checkedTodoIDs.contains(todo.id)
-            }
-            .sorted { lhs, rhs in
-                let lhsChecked = checkedTodoIDs.contains(lhs.id)
-                let rhsChecked = checkedTodoIDs.contains(rhs.id)
-                if lhsChecked != rhsChecked { return !lhsChecked }
-                return lhs.dueDate < rhs.dueDate
-            }
+    private struct ChecklistRow: Identifiable {
+        let todo: TodoItem
+        let depth: Int
+
+        var id: UUID { todo.id }
     }
 
-    private func todoSubtitle(_ todo: TodoItem) -> String {
+    private var checklistRows: [ChecklistRow] {
+        let roots = todos.filter { $0.parentID == nil }
+        var rows: [ChecklistRow] = []
+
+        for root in roots.sorted(by: checklistOrder) {
+            let children = todos.filter { $0.parentID == root.id }
+            let visibleChildren = children
+                .filter { !$0.isCompleted || checkedTodoIDs.contains($0.id) }
+                .sorted(by: checklistOrder)
+            let rootVisible = !root.isCompleted || checkedTodoIDs.contains(root.id) || !visibleChildren.isEmpty
+            guard rootVisible else { continue }
+            rows.append(ChecklistRow(todo: root, depth: 0))
+            rows.append(contentsOf: visibleChildren.map { ChecklistRow(todo: $0, depth: 1) })
+        }
+        return rows
+    }
+
+    private func checklistOrder(_ lhs: TodoItem, _ rhs: TodoItem) -> Bool {
+        let lhsChecked = checkedTodoIDs.contains(lhs.id) || lhs.isCompleted
+        let rhsChecked = checkedTodoIDs.contains(rhs.id) || rhs.isCompleted
+        if lhsChecked != rhsChecked { return !lhsChecked }
+        if lhs.dueDate != rhs.dueDate { return lhs.dueDate < rhs.dueDate }
+        return lhs.title < rhs.title
+    }
+
+    private func todoSubtitle(_ todo: TodoItem, depth: Int) -> String {
         var parts = [todo.category]
         if todo.kind == "count" {
             parts.append("\(todo.currentCount)/\(todo.targetCount) 次")
+        }
+        if depth > 0, let parent = parentTodo(of: todo) {
+            parts.append("属于 \(parent.title)")
         }
         if Calendar.current.isDateInToday(todo.dueDate) {
             parts.append("今天")
@@ -438,6 +617,19 @@ struct TimelineEditor: View {
             parts.append(todo.dueDate.formatted(.dateTime.month().day()))
         }
         return parts.joined(separator: " · ")
+    }
+
+    private func parentTodo(of todo: TodoItem) -> TodoItem? {
+        guard let parentID = todo.parentID else { return nil }
+        return todos.first { $0.id == parentID }
+    }
+
+    private func rootTodo(of todo: TodoItem) -> TodoItem {
+        var current = todo
+        while let parent = parentTodo(of: current) {
+            current = parent
+        }
+        return current
     }
 
     private func toggleCompletion(_ todo: TodoItem) {
@@ -450,6 +642,10 @@ struct TimelineEditor: View {
             if todoID == todo.id {
                 todoID = nil
             }
+            if let parent = parentTodo(of: todo) {
+                parent.isCompleted = false
+                checkedTodoIDs.remove(parent.id)
+            }
             return
         }
 
@@ -458,42 +654,85 @@ struct TimelineEditor: View {
             todo.currentCount = todo.targetCount
         }
         checkedTodoIDs.insert(todo.id)
+        completeAncestors(of: todo)
+
+        let anchorTodo = rootTodo(of: todo)
         if todoID == nil {
-            todoID = todo.id
+            todoID = anchorTodo.id
         }
         if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            title = todo.title
+            title = anchorTodo.title
         }
+    }
+
+    private func completeAncestors(of todo: TodoItem) {
+        guard let parent = parentTodo(of: todo) else { return }
+        let siblings = todos.filter { $0.parentID == parent.id }
+        let allDone = siblings.allSatisfy { $0.isCompleted || checkedTodoIDs.contains($0.id) }
+        guard allDone else { return }
+        parent.isCompleted = true
+        if parent.kind == "count" {
+            parent.currentCount = parent.targetCount
+        }
+        checkedTodoIDs.insert(parent.id)
+        completeAncestors(of: parent)
     }
 
     private var startIsValid: Bool {
-        Self.minutes(from: startText) != nil
+        let text = startText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty || Self.minutes(from: text) != nil
     }
 
     private var endIsValid: Bool {
-        Self.minutes(from: endText) != nil
+        let text = endText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty || Self.minutes(from: text) != nil
     }
 
     private func applyTimes() {
-        guard let startMinutes = Self.minutes(from: startText),
-              let endMinutes = Self.minutes(from: endText) else { return }
         let calendar = Calendar.current
-        if let newStart = calendar.date(
-            bySettingHour: startMinutes / 60,
-            minute: startMinutes % 60,
-            second: 0,
-            of: day
-        ) {
-            start = newStart
+        let defaultSpan: TimeInterval = isPlan ? 3600 : 1800
+
+        if let startMinutes = Self.minutes(from: startText) {
+            if let newStart = calendar.date(
+                bySettingHour: startMinutes / 60,
+                minute: startMinutes % 60,
+                second: 0,
+                of: day
+            ) {
+                start = newStart
+            }
+        } else {
+            let parts = calendar.dateComponents([.hour, .minute], from: start)
+            if let rebuilt = calendar.date(
+                bySettingHour: parts.hour ?? 9,
+                minute: parts.minute ?? 0,
+                second: 0,
+                of: day
+            ) {
+                start = rebuilt
+            }
         }
-        if let newEnd = calendar.date(
-            bySettingHour: endMinutes / 60,
-            minute: endMinutes % 60,
-            second: 0,
-            of: day
-        ) {
-            end = newEnd
+
+        if let endMinutes = Self.minutes(from: endText) {
+            if let newEnd = calendar.date(
+                bySettingHour: endMinutes / 60,
+                minute: endMinutes % 60,
+                second: 0,
+                of: day
+            ) {
+                end = newEnd
+            }
+        } else {
+            end = start.addingTimeInterval(defaultSpan)
         }
+    }
+
+    private func fillNow() {
+        let now = Date()
+        startText = Self.timeString(now)
+        endText = Self.timeString(now.addingTimeInterval(isPlan ? 3600 : 1800))
+        day = now
+        applyTimes()
     }
 
     private static let timeFormatter: DateFormatter = {
@@ -508,9 +747,17 @@ struct TimelineEditor: View {
     }
 
     private static func minutes(from text: String) -> Int? {
-        let cleaned = text
+        let normalized = text.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? text
+        let cleaned = normalized
             .replacingOccurrences(of: "：", with: ":")
+            .replacingOccurrences(of: "时", with: ":")
+            .replacingOccurrences(of: "點", with: ":")
             .replacingOccurrences(of: "点", with: ":")
+            .replacingOccurrences(of: "分", with: "")
+            .replacingOccurrences(of: "。", with: ".")
+            .replacingOccurrences(of: "．", with: ".")
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: ".", with: ":")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return nil }
 

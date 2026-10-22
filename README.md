@@ -12,9 +12,11 @@ Open `Rhythm.xcodeproj` in Xcode 15 or later, select an iPhone simulator or devi
 - Tomorrow's top-three list.
 - Two 24-hour clock dials on the home screen: planned blocks vs actual logging, with red slices for plan deviations. Every hour (0–23) is numbered on the dial.
 - Tap a slice to see and edit "what happens between which times"; tap empty dial space to log that time directly.
-- While logging a record, tick any unfinished todo to complete it on the spot; fully completed todos are hidden from that list.
+- Time entry accepts typed times in flexible formats: `14:13`, `14.13`, `1413`, or `9`, always 24-hour; leave it blank to use "now".
+- Todos can hold sub-todos (added inside the todo editor); when logging a time block you can tick the parent or any sub-todo, and sub-todos completing auto-complete the parent. Fully completed todos are hidden from that list.
 - Daily review listing missed, delayed, overlong, partial, and unplanned blocks, each with planned vs actual time ranges.
 - Todo review by day / week / month with completion rate, per-day bars, category breakdown, and remaining items.
+- Time review by item and by category: how long each todo (or unlinked record) took, how many sessions, per-day totals.
 - Natural green theme, plus a per-page background: each of the three tabs can use a built-in green gradient or its own photo.
 - Local persistence with SwiftData.
 - Siri/App Shortcuts quick capture with an automatic timestamp.

@@ -201,9 +201,17 @@ struct TimelineRow: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(entry.isPlan ? AppStyle.orange : AppStyle.green)
                 }
-                Text(TimeText.range(entry.start, entry.end))
-                    .font(.caption)
-                    .foregroundStyle(AppStyle.muted)
+                HStack(spacing: 6) {
+                    Text(TimeText.range(entry.start, entry.end))
+                        .font(.caption)
+                        .foregroundStyle(AppStyle.muted)
+                    Text(TimeText.duration(entry.duration))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppStyle.ink)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(AppStyle.paleGreen.opacity(0.8), in: Capsule())
+                }
                 HStack(spacing: 5) {
                     if let linkedTodo {
                         Label(linkedTodo.title, systemImage: "link")

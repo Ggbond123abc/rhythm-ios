@@ -50,6 +50,10 @@ struct ReviewScreen: View {
         comparisons.filter { !$0.kind.isDifference }
     }
 
+    private var timeStats: TimeReviewSummary {
+        TodoReview.timeSummary(scope: scope, anchor: anchor, entries: entries, todos: todos)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -379,6 +383,10 @@ struct ReviewScreen: View {
                 timeTotalsRow
             }
 
+            if timeStats.total > 0 {
+                timeSpentSection
+            }
+
             if differences.isEmpty {
                 if !rangeEntries.isEmpty {
                     EmptyHintCard(
@@ -403,7 +411,7 @@ struct ReviewScreen: View {
                 Text("计划总时长")
                     .font(.caption)
                     .foregroundStyle(AppStyle.muted)
-                Text(TimeText.duration(plans.reduce(0) { $0 + $1.duration }))
+                Text(TimeText.duration(timeStats.planned))
                     .font(.headline)
                     .foregroundStyle(AppStyle.orange)
             }
@@ -415,7 +423,7 @@ struct ReviewScreen: View {
                 Text("实际总时长")
                     .font(.caption)
                     .foregroundStyle(AppStyle.muted)
-                Text(TimeText.duration(actuals.reduce(0) { $0 + $1.duration }))
+                Text(TimeText.duration(timeStats.total))
                     .font(.headline)
                     .foregroundStyle(AppStyle.green)
             }
@@ -423,6 +431,170 @@ struct ReviewScreen: View {
             .padding(12)
             .background(.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 15))
         }
+    }
+
+    private var timeSpentSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("花了多少时间")
+                    .font(.headline)
+                    .foregroundStyle(AppStyle.ink)
+                Spacer()
+                Text("共 \(TimeText.duration(timeStats.total))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppStyle.green)
+            }
+
+            HStack(spacing: 10) {
+                timeMetric(title: scope == .day ? "这一天" : "平均每天", value: TimeText.duration(timeStats.averagePerActiveDay))
+                timeMetric(title: "记录段数", value: "\(timeStats.byTodo.reduce(0) { $0 + $1.sessions }) 段")
+                timeMetric(title: "单件最久", value: TimeText.duration(timeStats.longestSession))
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(timeStats.byTodo) { stat in
+                    timeStatRow(stat)
+                }
+            }
+            .padding(12)
+            .background(.white.opacity(0.88), in: RoundedRectangle(cornerRadius: 16))
+
+            if !timeStats.byCategory.isEmpty {
+                categoryTimeCard
+            }
+
+            if timeStats.byDay.count > 1, timeStats.byDay.contains(where: { $0.duration > 0 }) {
+                dailyTimeCard
+            }
+        }
+    }
+
+    private func timeStatRow(_ stat: TodoTimeStat) -> some View {
+        let ratio = timeStats.total == 0 ? 0 : stat.duration / timeStats.total
+        let tint = timeStatColor(stat)
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 8, height: 8)
+                Text(stat.title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppStyle.ink)
+                    .lineLimit(1)
+                if !stat.isLinked {
+                    Text("未关联")
+                        .font(.caption2)
+                        .foregroundStyle(AppStyle.muted)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(AppStyle.canvas, in: Capsule())
+                }
+                Spacer(minLength: 4)
+                Text(TimeText.duration(stat.duration))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppStyle.ink)
+            }
+            HStack(spacing: 8) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(AppStyle.paleGreen.opacity(0.7))
+                        Capsule()
+                            .fill(tint.opacity(0.9))
+                            .frame(width: max(2, geo.size.width * CGFloat(ratio)))
+                    }
+                }
+                .frame(height: 5)
+                Text("\(stat.sessions) 段")
+                    .font(.caption2)
+                    .foregroundStyle(AppStyle.muted)
+                    .frame(width: 34, alignment: .trailing)
+            }
+        }
+    }
+
+    private var categoryTimeCard: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("分类用时")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppStyle.muted)
+            ForEach(timeStats.byCategory) { stat in
+                HStack(spacing: 9) {
+                    Circle()
+                        .fill(categoryTimeColor(stat.name))
+                        .frame(width: 9, height: 9)
+                    Text(stat.name)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppStyle.ink)
+                    Spacer(minLength: 4)
+                    Text("\(Int((stat.share * 100).rounded()))%")
+                        .font(.caption2)
+                        .foregroundStyle(AppStyle.muted)
+                    Text(TimeText.duration(stat.duration))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppStyle.ink)
+                }
+            }
+        }
+        .padding(12)
+        .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func timeMetric(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(AppStyle.muted)
+            Text(value)
+                .font(.subheadline.bold())
+                .foregroundStyle(AppStyle.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 13))
+    }
+
+    private var dailyTimeCard: some View {
+        let peak = timeStats.byDay.map(\.duration).max() ?? 0
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("每天花的时间")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppStyle.muted)
+            HStack(alignment: .bottom, spacing: 4) {
+                ForEach(timeStats.byDay) { day in
+                    VStack(spacing: 4) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(day.duration > 0 ? AppStyle.green.opacity(0.8) : AppStyle.paleGreen.opacity(0.5))
+                            .frame(height: dailyBarHeight(day.duration, peak: peak))
+                        if timeStats.byDay.count <= 7 {
+                            Text(day.date.formatted(.dateTime.weekday(.narrow)))
+                                .font(.system(size: 9))
+                                .foregroundStyle(AppStyle.muted)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 88, alignment: .bottom)
+        }
+        .padding(12)
+        .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func dailyBarHeight(_ duration: TimeInterval, peak: TimeInterval) -> CGFloat {
+        guard peak > 0, duration > 0 else { return 4 }
+        return 8 + CGFloat(duration / peak) * 56
+    }
+
+    private func timeStatColor(_ stat: TodoTimeStat) -> Color {
+        stat.isLinked ? categories.color(named: stat.category) : AppStyle.muted
+    }
+
+    private func categoryTimeColor(_ name: String) -> Color {
+        if name == "未关联待办" { return AppStyle.muted }
+        return categories.color(named: name)
     }
 
     private var clockRow: some View {
